@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
-from torch.testing._internal.jit_utils import JitTestCase
+import unittest
+from torch.testing._internal.jit_utils import JitTestCase, RUN_CUDA
 
 from torch.testing import FileCheck
 from torch.testing._internal.common_quantized import override_quantized_engine
@@ -1730,3 +1731,46 @@ class TestFrozenOptimizations(JitTestCase):
             self.run_pass("convert_frozen_ops_to_mkldnn", frozen.graph)
             inp = torch.rand([4, 3, 4, 4])
             self.assertEqual(frozen(inp), mod(inp))
+
+    @unittest.skipIf(not RUN_CUDA, "requires CUDA")
+    def test_freeze_conv_relu_fusion(self):
+        conv_bias = [True, False]
+        conv_ops = [nn.Conv1d, nn.Conv2d, nn.Conv3d]
+        use_tracing = [True, False]
+
+        for use_bias, conv_op, tracing in product(conv_bias, conv_ops, use_tracing):
+            class Net(nn.Module):
+                def __init__(self, in_channels, out_channels, **kwargs):
+                    super(Net, self).__init__()
+                    self.conv = nn.Sequential(
+                        conv_op(in_channels, out_channels, bias=use_bias, **kwargs),
+                        nn.ReLU(inplace=True),
+                    )
+
+                def forward(self, x: torch.Tensor) -> torch.Tensor:
+                    x = self.conv(x)
+                    return x
+
+            mod_eager = Net(3, 32, kernel_size=3, stride=2).eval().cuda()
+
+            inps = [4, 3, 4]
+            if conv_op == nn.Conv2d:
+                inps.append(inps[-1])
+            if conv_op == nn.Conv3d:
+                inps.append(inps[-1])
+                inps.append(inps[-1])
+            inp = torch.rand(inps).cuda()
+
+            if tracing:
+                scripted_mod = torch.jit.trace(mod_eager, (inp))
+            else:
+                scripted_mod = torch.jit.script(mod_eager)
+
+            self.run_pass("inline", scripted_mod.graph)
+            FileCheck().check("aten::relu").run(scripted_mod.graph)
+            frozen_mod = torch.jit.freeze(scripted_mod)
+            self.run_pass("fuse_frozen_conv_relu", frozen_mod.graph)
+            FileCheck().check("aten::cudnn_convolution_bias_relu").run(frozen_mod.graph)
+
+            self.assertEqual(mod_eager(inp), scripted_mod(inp))
+            self.assertEqual(mod_eager(inp), scripted_mod(inp))
