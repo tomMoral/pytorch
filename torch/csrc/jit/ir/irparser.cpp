@@ -71,6 +71,7 @@ struct ParsedLiteral {
   int64_t i = 0;
   std::string s = "";
   double f = 0.0;
+  c10::complex<double> c = c10::complex<double>(0, 0);
   TypePtr ty;
   std::vector<int64_t> is;
   std::vector<std::string> ss;
@@ -160,7 +161,11 @@ ParsedLiteral IRParser::parseScalarLiteral(Node* n) {
       // Fallthrough
     case TK_NUMBER:
       str += L.cur().text();
-
+      if (str.find('j') != std::string::npos) {
+        r.k = AttributeKind::c;
+        auto imag = c10::stod(str.substr(0, str.size() - 1));
+        r.c = c10::complex<double>(0, imag);
+      }
       if (str.find('.') != std::string::npos ||
           str.find('e') != std::string::npos) {
         r.k = AttributeKind::f;
@@ -186,15 +191,11 @@ ParsedLiteral IRParser::parseScalarLiteral(Node* n) {
 
 /** \brief Parse attribute and add it to the node N.
  *
- * The function determines the attribute type (string, int, float, list of
- * strings, list of ints, list of floats, and a list of tensors (currently only
- * for empty lists)).
- * An attribute looks like the following:
- *   AttrName=AttrValue
- *  Where AttrValue can be a list or a scalar literal, e.g.:
- *   size = 27
- *   name = "Bob"
- *   coefs = [1.2, 3.4, 0.6]
+ * The function determines the attribute type (string, int, float, complex, list
+ * of strings, list of ints, list of floats, list of complex, and a list of
+ * tensors (currently only for empty lists)). An attribute looks like the
+ * following: AttrName=AttrValue Where AttrValue can be a list or a scalar
+ * literal, e.g.: size = 27 name = "Bob" coefs = [1.2, 3.4, 0.6]
  */
 void IRParser::parseAttr(Node* n) {
   std::string attrname = L.expect(TK_IDENT).text();
@@ -265,6 +266,9 @@ void IRParser::parseAttr(Node* n) {
         break;
       case AttributeKind::f:
         n->f_(Symbol::attr(attrname), r.f);
+        break;
+      case AttributeKind::c:
+        n->c_(Symbol::attr(attrname), r.c);
         break;
       case AttributeKind::ty:
         n->ty_(Symbol::attr(attrname), r.ty);

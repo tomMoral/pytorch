@@ -509,6 +509,17 @@ std::ostream& IValue::repr(
       return out << std::setprecision(std::numeric_limits<double>::max_digits10)
                  << d << std::setprecision(orig_prec);
     }
+    case IValue::Tag::ComplexDouble: {
+      auto d = v.toComplexDouble();
+      IValue real(d.real()), imag(std::abs(d.imag()));
+      auto sign = "";
+      if (d.imag() >= 0) {
+        sign = "+";
+      } else {
+        sign = "-";
+      }
+      return out << real << sign << imag << "j";
+    }
     case IValue::Tag::Int:
       return out << v.toInt();
     case IValue::Tag::Bool:
