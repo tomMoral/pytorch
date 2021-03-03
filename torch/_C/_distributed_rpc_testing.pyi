@@ -1,7 +1,8 @@
-from ._distributed_c10d import ProcessGroup
+from ._distributed_c10d import ProcessGroup, Store
 from ._distributed_rpc import ProcessGroupAgent, ProcessGroupRpcBackendOptions, WorkerInfo
 from typing import List, Dict, overload
 from datetime import timedelta
+
 
 # This module is defined in torch/csrc/distributed/rpc/testing/init.cpp
 
@@ -23,6 +24,7 @@ class FaultyProcessGroupRpcBackendOptions(ProcessGroupRpcBackendOptions):
 class FaultyProcessGroupAgent(ProcessGroupAgent):
     def __init__(
         self,
+        store: Store,
         name: str,
         process_group: ProcessGroup,
         num_send_recv_threads: int,
