@@ -29,7 +29,7 @@ import multiprocessing as mp
 _default_context = mp.get_context()
 __all__ctx = [x for x in dir(_default_context) if not x.startswith('_')]
 __all__mp = [
-    x for x in mp.__all__ if x not in __all__ctx  # type: ignore[attr-defined]
+    x for x in dir(mp) if x not in __all__ctx and not x.startswith('_')
 ]
 globals().update((name, getattr(_default_context, name)) for name in __all__ctx)
 globals().update((name, getattr(mp, name)) for name in __all__mp)
