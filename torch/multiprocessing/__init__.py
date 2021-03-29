@@ -24,13 +24,15 @@ __all__ = ['set_sharing_strategy', 'get_sharing_strategy',
 
 # Compat from older version of python to make sure we get the objects
 # compatible with the default context.
-from multiprocessing import get_context
+import multiprocessing as mp
 
-_default_context = get_context()
-__all__mp = [x for x in dir(_default_context) if not x.startswith('_')]
-globals().update((name, getattr(_default_context, name)) for name in __all__mp)
+_default_context = mp.get_context()
+__all__ctx = [x for x in dir(_default_context) if not x.startswith('_')]
+__all_mp = [x for x in mp.__all__ if x not in all_ctx]
+globals().update((name, getattr(_default_context, name)) for name in __all__ctx)
+globals().upate((name, getattr(mp, name)) for name in __all__mp)
 
-__all__ += __all__mp  # type: ignore[attr-defined]
+__all__ += __all__ctx + __all__mp  # type: ignore[attr-defined]
 
 
 # This call adds a Linux specific prctl(2) wrapper function to this module.
